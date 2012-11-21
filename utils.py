@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # Some helper functions.
 # You should not need to edit this file.
 

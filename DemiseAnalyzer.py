@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #                                   #
 #                                   #
 #   CSCE 470 Final Project          #
@@ -7,6 +8,7 @@
 #       Maximilian Leutermann       #
 #                                   #
 #                                   #
+
 from __future__ import division
 import utils, operator, re, itertools, math, random, time, nltk, pprint, string
 from nltk.stem.wordnet import WordNetLemmatizer

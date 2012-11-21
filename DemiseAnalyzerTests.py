@@ -1,5 +1,7 @@
+#!/usr/bin/env python
+
 import sys
-sys.path.insert(0,'../src/')
+sys.path.append('../')
 import DemiseAnalyzer, utils, unittest
 from collections import Counter
 
