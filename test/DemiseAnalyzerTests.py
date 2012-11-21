@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(0,'../src/')
 import DemiseAnalyzer, utils, unittest
 from collections import Counter
 
