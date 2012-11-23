@@ -62,7 +62,11 @@ class DemiseAnalyzer(object):
         for i in xrange(num_google_pages):
           i+=1
           for j in xrange(len(add_words)):
-            qresults.append(service.cse().list(q=activity_query,cx='006235170055801286300:e4l76z05biw',start=i,num=10,hq=add_words[j]).execute())
+            qresults.append(service.cse().list( q=activity_query,
+                                                cx='006235170055801286300:e4l76z05biw',
+                                                start=i,
+                                                num=10,
+                                                hq=add_words[j]).execute())
         results = []
         for page in qresults:
           for item in page['items']:
@@ -103,7 +107,9 @@ class DemiseAnalyzer(object):
                     verbs.append(lmtzr.lemmatize(subtree[0][0],'v'))
 
         # return results in order of liklihood
-        return [pair[0] for pair in sorted(self.__sentimentDetermination__(verbs).items(), key=lambda item: item[1], reverse = True)]
+        return [pair[0] for pair in sorted( self.__sentimentDetermination__(verbs).items(),
+                                            key=lambda item: item[1],
+                                            reverse = True)]
 
 
     def __sentimentDetermination__(self, verbs):
