@@ -1,7 +1,12 @@
 #!/usr/bin/env python
 
+import os
+os.chdir('../')
+
 import sys
-sys.path.append('../')
+sys.path.append("./analyzer")
+sys.path.append("./data")
+
 import DemiseAnalyzer, utils, unittest
 from collections import Counter
 
