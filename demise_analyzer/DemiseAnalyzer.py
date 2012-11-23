@@ -13,6 +13,8 @@ from __future__ import division
 import utils, operator, re, itertools, math, random, time, nltk, pprint, string
 from nltk.stem.wordnet import WordNetLemmatizer
 from collections import defaultdict, Counter
+from apiclient.discovery import build
+from random import sample
 
 class DemiseAnalyzer(object):
     def __init__(self):
@@ -44,23 +46,23 @@ class DemiseAnalyzer(object):
                 snippets.append(item["snippet"])
         return snippets
 
-    def onlineSearch(self,bad_words,pages,query): # TODO :: Use this once crawler is operational.
-        print "User Query = %s" % (query)
+    def onlineSearch(self,num_bad_words,num_google_pages,activity_query): # TODO :: Use this once crawler is operational.
+        print "User activity_query = %s" % (activity_query)
         print "--------------------------------------------------------"
         print "Building service client..."
         service = build("customsearch","v1",developerKey="AIzaSyBxbY4NLqH7WWlq1Hgzcqsq29wz8d730o8")
         print "complete!"
         qresults = []
-        pages = min(pages,10)
-        add_words = [''] + sample(self.negative_words,bad_words)
-        print "# of randomly sampled negative terms: %d" % (bad_words)
+        num_google_pages = min(num_google_pages,10)
+        add_words = [''] + sample(self.negative_words,num_bad_words)
+        print "# of randomly sampled negative terms: %d" % (num_bad_words)
         print "Negative term samples:",add_words
         print "--------------------------------------------------------"
         print "Commencing custom search queries..."
-        for i in xrange(pages):
+        for i in xrange(num_google_pages):
           i+=1
           for j in xrange(len(add_words)):
-            qresults.append(service.cse().list(q=query,cx='006235170055801286300:e4l76z05biw',start=i,num=10,hq=add_words[j]).execute())
+            qresults.append(service.cse().list(q=activity_query,cx='006235170055801286300:e4l76z05biw',start=i,num=10,hq=add_words[j]).execute())
         results = []
         for page in qresults:
           for item in page['items']:
