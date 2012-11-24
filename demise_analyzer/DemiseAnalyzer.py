@@ -10,7 +10,6 @@
 #                                   #
 
 import utils, operator, re, itertools, math, random, time, nltk, string
-from word_semantics import word_feats
 
 import nltk.classify.util
 from nltk.classify import NaiveBayes Classifier
