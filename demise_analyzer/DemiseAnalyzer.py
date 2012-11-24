@@ -9,14 +9,15 @@
 #                                   #
 #                                   #
 
+from __future__ import division
+
 import utils, operator, re, itertools, math, random, time, nltk, string
 
 import nltk.classify.util
-from nltk.classify import NaiveBayes Classifier
+from nltk.classify import NaiveBayesClassifier
 from nltk.corpus import movie_reviews # For semantic analysis to be performed for NaiveBayes
 from nltk.stem.wordnet import WordNetLemmatizer
 
-from __future__ import division
 from collections import defaultdict, Counter
 
 from apiclient.discovery import build
@@ -47,10 +48,10 @@ class DemiseAnalyzer(object):
     def trainNaiveBayes(self):
         negids = movie_reviews.fileids('neg')
         posids = movie_reviews.fileids('pos')
-        negfeats = [(word_feats(movie_reviews.words(fileids=[f])),'neg') for f in negids]
-        posfeats = [(word_feats(movie_reviews.words(fileids=[f])),'pos') for f in posids]
+        negfeats = [(utils.word_feats(movie_reviews.words(fileids=[f])),'neg') for f in negids]
+        posfeats = [(utils.word_feats(movie_reviews.words(fileids=[f])),'pos') for f in posids]
         trainfeats = negfeats[:] + posfeats[:]
-        self.classifier = NaiveBayesCLassifier.train(trainfeats)
+        self.classifier = NaiveBayesClassifier.train(trainfeats)
 
     def pre_fabricate(self, results):
         # this is a temoprary method until we get the correct JSONs from the Google search
@@ -98,24 +99,11 @@ class DemiseAnalyzer(object):
     def OneDimRocchio(self):
         poscount, negcount = 0, 0
         for url in self.weblinks:
+          pass
           # for each url, get all sentences using the web scraper.
           # then find the sentences that contain terms in our positive and negative term lists.
           # pull all the verbs out of these sentences for later use in determining cause of demise.
           # run classifier on each of these sentences and accumulate results in poscount and negcount respectively.
-        danger = positiveVerbs - negativeVerbs
-
-        if danger > 25:
-            self.danger = "very safe"
-        elif danger > 10:
-            self.danger = "safe"
-        elif danger > -11:
-            self.danger = "neutral"
-        elif danger > -26:
-            self.danger = "dangerous"
-        else:
-            self.danger = "very dangerous"
-
-        return countedVerbs
 
     def createResults(self, snippets):
         # create one long string from a list of strings appending a period to the end of each string
