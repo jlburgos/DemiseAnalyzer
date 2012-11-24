@@ -10,23 +10,24 @@
 #                                   #
 
 from __future__ import division
-
 import utils, operator, re, itertools, math, random, time, nltk, string
+from collections import defaultdict, Counter
 
 import nltk.classify.util
 from nltk.classify import NaiveBayesClassifier
-from nltk.corpus import movie_reviews # For semantic analysis to be performed for NaiveBayes
+from nltk.corpus import movie_reviews
 from nltk.stem.wordnet import WordNetLemmatizer
-
-from collections import defaultdict, Counter
 
 from apiclient.discovery import build
 
 class DemiseAnalyzer(object):
     def __init__(self):
-        lmtzr = WordNetLemmatizer()
         # set the danger level to neutral
         self.danger = "neutral"
+
+        # instantiate word net
+        lmtzr = WordNetLemmatizer()
+
         # import negative words
         self.negative_words = []
         negative_words_import = set(line.strip() for line in open('./data/negative_words.txt'))
@@ -34,6 +35,7 @@ class DemiseAnalyzer(object):
             self.negative_words.append(lmtzr.lemmatize(word,'v'))
         self.negative_words = set(self.negative_words)
         del negative_words_import
+
         # import positive words
         self.positive_words = []
         positive_words_import = set(line.strip() for line in open('./data/positive_words.txt'))
@@ -41,6 +43,7 @@ class DemiseAnalyzer(object):
             self.positive_words.append(lmtzr.lemmatize(word,'v'))
         self.positive_words = set(self.positive_words)
         del positive_words_import
+
         # set up structure for classifying web search results
         self.weblinks = []
         self.trainNaiveBayes()
