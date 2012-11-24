@@ -19,4 +19,5 @@ def connect_db(dbname, remove_existing=False):
         con.drop_database(dbname)
     return con[dbname]
 
-
+def word_feats(words):
+  return dict([(word,True) for word in words])
