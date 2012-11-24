@@ -30,9 +30,11 @@ class DemiseAnalyzerDemo(QtGui.QWidget):
     self.show()
 
   def showDialog(self):
+    self.statusBar().showMessage('Awaiting User Query...')
     text, ok = QtGui.QInputDialog.getText(self, 'Provide Activity', 'User Activity:')
     self.show()
     if ok and text != "":
+      self.statusBar().showMessage('Processing User Query...')
       print "Analyzing Activity Query: ",text
       google_results = self.analyzer.onlineSearch(num_bad_words=1,num_google_pages=1,activity_query=text)
       analyzer_output = self.analyzer.createResults(google_results)
@@ -45,6 +47,6 @@ class DemiseAnalyzerDemo(QtGui.QWidget):
         count += 1
       print "_____________________________________________________________\n"
       print "Your activity has been deemed:",self.analyzer.danger
-      print "Finished with analysis!"
+      self.statusBar().showMessage('Analysis Complete!')
 
 
