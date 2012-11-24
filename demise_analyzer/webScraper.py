@@ -4,8 +4,7 @@ import nltk
 import urllib
 from urllib import urlopen
 
-def scrapWebPage():
-  url = 'http://www.alternet.org/truth-about-sleeping-pills-big-pharmas-goldmine'
+def scrapWebPage(url):
   html = urlopen(url).read()
   raw = nltk.clean_html(html)
   l2 = nltk.sent_tokenize(raw)
