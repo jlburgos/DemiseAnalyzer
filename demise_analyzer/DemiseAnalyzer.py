@@ -12,6 +12,7 @@
 from __future__ import division
 import utils, operator, re, itertools, math, random, time, nltk, string
 from collections import defaultdict, Counter
+from webScraper import scrapWebPage
 
 import nltk.classify.util
 from nltk.classify import NaiveBayesClassifier
@@ -46,9 +47,9 @@ class DemiseAnalyzer(object):
 
         # set up structure for classifying web search results
         self.weblinks = []
-        self.trainNaiveBayes()
+        self.__trainNaiveBayes__()
 
-    def trainNaiveBayes(self):
+    def __trainNaiveBayes__(self):
         negids = movie_reviews.fileids('neg')
         posids = movie_reviews.fileids('pos')
         negfeats = [(utils.word_feats(movie_reviews.words(fileids=[f])),'neg') for f in negids]
@@ -99,14 +100,32 @@ class DemiseAnalyzer(object):
         print "--------------------------------------------------------"
         return results
 
-    def OneDimRocchio(self):
+    def OneDimRocchio_with_NaiveBayes(self,max_num_sentences):
+        print "Called OneDimRocchio"
         poscount, negcount = 0, 0
+        html_sentences = []
         for url in self.weblinks:
-          pass
-          # for each url, get all sentences using the web scraper.
-          # then find the sentences that contain terms in our positive and negative term lists.
-          # pull all the verbs out of these sentences for later use in determining cause of demise.
-          # run classifier on each of these sentences and accumulate results in poscount and negcount respectively.
+          html_sentences += scrapWebPage(url)
+          if len(html_sentences) >= max_num_sentences: break
+        for sent in html_sentences:
+          sentiment = self.classifier.classify(utils.word_feats(sent))
+          if sentiment == 'pos':
+            poscount += 1
+          else:
+            negcount += 1
+        sentiment = 'neutral'
+        if poscount > negcount:
+          sentiment = 'safe'
+        elif poscount < negcount:
+          sentiment = 'dangerous'
+        level = 'mildly'
+        if poscount >= 1.5*negcount or negcount >= 1.5*negcount:
+          level = 'relatively'
+        elif poscount >= 2*negcount or negcount >= 2*poscount:
+          level = 'very'
+
+        self.danger = level + ' ' + sentiment
+        return self.createResults(html_sentences)
 
     def createResults(self, snippets):
         # create one long string from a list of strings appending a period to the end of each string

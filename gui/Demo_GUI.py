@@ -16,7 +16,7 @@ class DemiseAnalyzerDemo(QtGui.QMainWindow):
 
   def initUI(self):
     # Button to control Dialog Box
-    self.btn = QtGui.QPushButton('Provide Activity', self)
+    self.btn = QtGui.QPushButton('Click Me!', self)
     self.btn.move(20, 20)
     self.btn.setToolTip('Click this button to provide an activity query.')
     self.btn.clicked.connect(self.showDialog)
@@ -38,7 +38,8 @@ class DemiseAnalyzerDemo(QtGui.QMainWindow):
     if ok and text != "":
       self.statusBar().showMessage('Processing User Query...')
       google_results = self.analyzer.onlineSearch(num_bad_words=1,num_google_pages=1,activity_query=text)
-      analyzer_output = self.analyzer.createResults(google_results)
+      analyzer_output = self.analyzer.OneDimRocchio_with_NaiveBayes(5000)
+      #analyzer_output = self.analyzer.createResults(google_results)
 
       print "\n_____________________________________________________________\n,"
       print "When doing this activity you are most likely to: "
