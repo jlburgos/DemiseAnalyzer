@@ -163,36 +163,63 @@ class DemiseAnalyzer(object):
                   CHUNK2: {<VBZ><RB>}
                   CHUNK3: {<VBN><IN><DT><NN>}
                   """
-        grammar2 = r'CHUNK: {<NN|NP>}'
         cp_effect = nltk.RegexpParser(grammar)
-        cp_cause = nltk.RegexpParser(grammar2)
-        verbs = []
-        nouns = []
+        all_verbs = []
         neg_sentences = []
         lmtzr = WordNetLemmatizer()
+
         for i in xrange(len(sentences)):
           original = orig_sentences[i]
           sentence = sentences[i]
-          #print '----------------------------------------------------------------'
-          #print 'sentence = %s\n' % sentence
-          #print 'original = %s\n' % orig_sentences[i]
-          #print '----------------------------------------------------------------'
           if self.classifier.classify(utils.word_feats(original)) == 'neg':
-            neg_sentences.append((i,original))
+            if not set(self.negative_words).isdisjoint(original.split(' ')):
+              neg_sentences.append((i,original))
           tree = cp_effect.parse(sentence)
           for subtree in tree.subtrees():
             # Collect meaningful verbs
             if subtree.node in ['CHUNK0','CHUNK1','CHUNK2','CHUNK3']:
-              #verbs.append((i,subtree[0][0]))
-              verbs.append((i,lmtzr.lemmatize(subtree[0][0],'v')))
-              # Collect a few meaningful non-verbs
-              ntree = cp_cause.parse(sentence)
-              tmp = []
-              for nsubtree in ntree.subtrees():
-                if nsubtree.node == 'CHUNK':
-                  nouns.append((i,nsubtree[0][0]))
+              term = lmtzr.lemmatize(subtree[0][0],'v')
+              all_verbs.append(term)
+
+        all_verbs = [pair[0] for pair in sorted(self.determine_sentiment(all_verbs,True).items(), key=lambda item: item[1], reverse=True)]
+        grammar2 = r'CHUNK: {<NN|NP>}'
+        cp_cause = nltk.RegexpParser(grammar2)
+        nouns = []
+        verbs = []
+
         for sent in neg_sentences:
-          print 'negative sentence = %s\n' % sent[1]
+          # Verbs
+          tree = cp_effect.parse(sentence)
+          for subtree in tree.subtrees():
+            if subtree.node in ['CHUNK0','CHUNK1','CHUNK2','CHUNK3']:
+              term = lmtzr.lemmatize(subtree[0],'v')
+              some_verbs.append(term)
+          verbs.append(some_verbs)
+
+        f = open('information.txt','w')
+        for sent in verbs:
+          f.write('negative verbs =',sent,'\n\n')
+        f.close()
+        exit()
+
+        """
+          # Nouns
+          tree = cp_cause.parse(sent)
+          some_nouns = []
+          for subtree in tree.subtrees():
+            if subtree.node == 'CHUNK':
+              some_nouns.append(subtree[0][0])
+          nouns.append(some_nouns)
+        """
+
+        """
+        f = open('information.txt','w')
+        for sent in neg_sentences:
+          f.write('negative sentence = %s\n' % sent[1])
+        f.close()
+        """
+
+
         """
         nouns = list(set(nouns))
         pairings = []
