@@ -137,17 +137,17 @@ class DemiseAnalyzer(object):
         l1 = self.create_results(html_sentences)
         return l1
 
-    def create_results(self, snippets):
+    def create_results(self, orig_sentences):
         print 'Running nltk subroutines in create_results()'
         # create one long string from a list of strings appending a period to the end of each string
-        sentences = string.join(snippets,". ")
+        #sentences = string.join(snippets,". ")
         # remove punctuation marks (comma,period,etc...)
         #for c in string.punctuation:
         #  sentences = sentences.replace(c,"")
         # split string into sentences
-        sentences = nltk.sent_tokenize(sentences)
+        #sentences = nltk.sent_tokenize(sentences)
         # create a list of all tokens in each sentence
-        sentences = [list(set(nltk.word_tokenize(sent))) for sent in sentences]
+        sentences = [list(set(nltk.word_tokenize(sent))) for sent in orig_sentences]
         # tag parts of speech for each word
         sentences = [nltk.pos_tag(sent) for sent in sentences]
         # pull out verbs
@@ -162,28 +162,84 @@ class DemiseAnalyzer(object):
                   CHUNK1: {<VBD>|<VBN>}
                   CHUNK2: {<VBZ><RB>}
                   CHUNK3: {<VBN><IN><DT><NN>}
-                  CHUNK4: {<NN><VBN|VBZ>*}
                   """
-        cp = nltk.RegexpParser(grammar)
+        grammar2 = r'CHUNK: {<NN|NP>}'
+        cp_effect = nltk.RegexpParser(grammar)
+        cp_cause = nltk.RegexpParser(grammar2)
         verbs = []
         nouns = []
+        neg_sentences = []
         lmtzr = WordNetLemmatizer()
-        for sentence in sentences:
-            tree = cp.parse(sentence)
-            for subtree in tree.subtrees():
-                # Verbs
-                if subtree.node == 'CHUNK0':
-                    verbs.append(lmtzr.lemmatize(subtree[0][0],'v'))
-                if subtree.node == 'CHUNK1':
-                    verbs.append(lmtzr.lemmatize(subtree[0][0],'v'))
-                if subtree.node == 'CHUNK2':
-                    verbs.append(lmtzr.lemmatize(subtree[0][0],'v'))
-                # Nouns
-                if subtree.node == 'CHUNK3':
-                    nouns.append((lmtzr.lemmatize(subtree[0][0],'n')))
-                if subtree.node == 'CHUNK4':
-                    nouns.append((lmtzr.lemmatize(subtree[0][0],'n')))
+        for i in xrange(len(sentences)):
+          original = orig_sentences[i]
+          sentence = sentences[i]
+          #print '----------------------------------------------------------------'
+          #print 'sentence = %s\n' % sentence
+          #print 'original = %s\n' % orig_sentences[i]
+          #print '----------------------------------------------------------------'
+          if self.classifier.classify(utils.word_feats(original)) == 'neg':
+            neg_sentences.append((i,original))
+          tree = cp_effect.parse(sentence)
+          for subtree in tree.subtrees():
+            # Collect meaningful verbs
+            if subtree.node in ['CHUNK0','CHUNK1','CHUNK2','CHUNK3']:
+              #verbs.append((i,subtree[0][0]))
+              verbs.append((i,lmtzr.lemmatize(subtree[0][0],'v')))
+              # Collect a few meaningful non-verbs
+              ntree = cp_cause.parse(sentence)
+              tmp = []
+              for nsubtree in ntree.subtrees():
+                if nsubtree.node == 'CHUNK':
+                  nouns.append((i,nsubtree[0][0]))
+        for sent in neg_sentences:
+          print 'negative sentence = %s\n' % sent[1]
+        """
         nouns = list(set(nouns))
+        pairings = []
+        for verb in verbs:
+          pairing = (verb[1],[])
+          for noun in nouns:
+            if verb[0] == noun[0]:
+              pairing[1].append(noun[1])
+              break
+          ss = ' '.join(pairing[1])
+
+          pairings.append(pairing)
+
+        f = open('information.txt','w')
+        f.write('\n=====================================================\n')
+        f.write('pairings :: %d\n' % len(pairings))
+        count = 0
+        for i in xrange(len(pairings)):
+          for j in xrange(len(pairings[i][1])):
+            elem = pairings[i][1][j]
+            f.write('%s   ' % elem)
+          f.write('\n----------------------------------------------------\n')
+        f.write('\n=====================================================\n')
+        f.write('nouns :: %d\n' % len(nouns))
+        count = 0
+        for i in xrange(len(nouns)):
+          elem = nouns[i]
+          count += 1;
+          if count < 9:
+            f.write('%s   ' % elem[1])
+          else:
+            count = 0
+            f.write('\n%s   ' % elem[1])
+        f.write('\n=====================================================\n')
+        f.write('verbs :: %d\n' % len(verbs))
+        count = 0
+        for i in xrange(len(verbs)):
+          elem = verbs[i]
+          count += 1
+          if count < 9:
+            f.write('%s   ' % elem[1])
+          else:
+            count = 0
+            f.write('\n%s   ' % elem[1])
+        f.write('\n=====================================================\n')
+        """
+        exit()
         nouns = [noun for noun in nouns if self.classifier.classify(utils.word_feats(noun))=='neg']
         verbs = [pair[0] for pair in sorted(self.determine_sentiment(verbs,True).items(), key=lambda item: item[1], reverse=True)]
         return [nouns[:15],verbs[:15]]
