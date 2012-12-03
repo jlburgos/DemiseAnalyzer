@@ -181,7 +181,7 @@ class DemiseAnalyzer(object):
                 # Nouns
                 if subtree.node == 'CHUNK3':
                     nouns.append((lmtzr.lemmatize(subtree[0][0],'n')))
-                elif subtree.node == 'CHUNK4':
+                if subtree.node == 'CHUNK4':
                     nouns.append((lmtzr.lemmatize(subtree[0][0],'n')))
         nouns = list(set(nouns))
         nouns = [noun for noun in nouns if self.classifier.classify(utils.word_feats(noun))=='neg']
