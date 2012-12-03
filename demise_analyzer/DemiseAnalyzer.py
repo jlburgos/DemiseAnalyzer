@@ -106,6 +106,7 @@ class DemiseAnalyzer(object):
 
     def rocchio(self,max_num_sentences):
         print 'Running rocchio()'
+        """
         poscount, negcount = 0, 0
         html_sentences = []
         for url in self.web_links:
@@ -133,6 +134,11 @@ class DemiseAnalyzer(object):
           level = 'very'
 
         self.danger_r1 = level + ' ' + sentiment
+        """
+        f = open('online_sentences.txt','r')
+        html_sentences = []
+        for line in f:
+          html_sentences.append(line)
 
         l1 = self.create_results(html_sentences)
         return l1
@@ -150,12 +156,7 @@ class DemiseAnalyzer(object):
         sentences = [list(set(nltk.word_tokenize(sent))) for sent in orig_sentences]
         # tag parts of speech for each word
         sentences = [nltk.pos_tag(sent) for sent in sentences]
-        # pull out verbs
-        #grammar = r"""
-        #          CHUNK:
-        #            {<V.*>}
-        #            }<VBZ>{
-        #          """
+        #########################################################################3
         grammar = r"""
                   CHUNK0: {<V.*>}
                           }<VBZ>{
@@ -164,6 +165,7 @@ class DemiseAnalyzer(object):
                   CHUNK3: {<VBN><IN><DT><NN>}
                   """
         cp_effect = nltk.RegexpParser(grammar)
+        #########################################################################3
         all_verbs = []
         neg_sentences = []
         lmtzr = WordNetLemmatizer()
@@ -173,7 +175,7 @@ class DemiseAnalyzer(object):
           sentence = sentences[i]
           if self.classifier.classify(utils.word_feats(original)) == 'neg':
             if not set(self.negative_words).isdisjoint(original.split(' ')):
-              neg_sentences.append((i,original))
+              neg_sentences.append(original)
           tree = cp_effect.parse(sentence)
           for subtree in tree.subtrees():
             # Collect meaningful verbs
@@ -181,24 +183,79 @@ class DemiseAnalyzer(object):
               term = lmtzr.lemmatize(subtree[0][0],'v')
               all_verbs.append(term)
 
-        all_verbs = [pair[0] for pair in sorted(self.determine_sentiment(all_verbs,True).items(), key=lambda item: item[1], reverse=True)]
-        grammar2 = r'CHUNK: {<NN|NP>}'
-        cp_cause = nltk.RegexpParser(grammar2)
-        nouns = []
-        verbs = []
+        #all_verbs = [pair[0] for pair in sorted(self.determine_sentiment(all_verbs,True).items(), key=lambda item: item[1], reverse=True)]
+        self.determine_sentiment(all_verbs,True)
 
-        for sent in neg_sentences:
+        #########################################################################3
+        # Identify negative cause/effect relationships
+        grammar2 = r'CHUNK: {<NN.*>}'
+        cp_cause = nltk.RegexpParser(grammar2)
+        #########################################################################3
+
+        mod_neg_sentences = [list(set(nltk.word_tokenize(sent))) for sent in neg_sentences]
+        mod_neg_sentences = [nltk.pos_tag(sent) for sent in mod_neg_sentences]
+        verbs = []
+        nouns = []
+        f0 = open('information.txt','w')
+        for sent in mod_neg_sentences:
+          f0.write('\n=====================================================\n')
+          f0.write('2.negative sentences = %s\n' % sent)
+          f0.write('\n===TODO==================================================\n')
           # Verbs
-          tree = cp_effect.parse(sentence)
-          for subtree in tree.subtrees():
+          some_verbs = []
+          tree1 = cp_effect.parse(sent)
+          for subtree in tree1.subtrees():
             if subtree.node in ['CHUNK0','CHUNK1','CHUNK2','CHUNK3']:
-              term = lmtzr.lemmatize(subtree[0],'v')
+              term = lmtzr.lemmatize(subtree[0][0],'v')
+              #print 'subtree[0] = ',subtree[0]
               some_verbs.append(term)
           verbs.append(some_verbs)
+          # Nouns
+          some_nouns = []
+          tree2 = cp_cause.parse(sent)
+          for subtree in tree2.subtrees():
+            if subtree.node in ['CHUNK']:
+              term = lmtzr.lemmatize(subtree[0][0],'n')
+              #print 'subtree[0] = ',subtree[0]
+              some_nouns.append(term)
+          nouns.append(some_nouns)
+        f0.close()
 
-        f = open('information.txt','w')
-        for sent in verbs:
-          f.write('negative verbs =',sent,'\n\n')
+        verbs = [verb for verb in verbs if len(verb)!=0]
+        f = open('verbs.txt','w')
+        for verb in verbs:
+          print verb
+          f.write('\n=====================================================\n')
+          f.write('2.negative verbs = %s\n' % verb)
+          f.write('\n=====================================================\n')
+          f.write('\n=====================================================\n')
+          f.write('\n=====================================================\n')
+        f.write('\n===TODO==================================================\n')
+        f.close()
+        nouns = [noun for noun in nouns if len(noun)!=0]
+        f2 = open('nouns.txt','w')
+        for noun in nouns:
+          print nouns
+          f2.write('\n=====================================================\n')
+          f2.write('1.negative nouns = %s\n' % noun)
+          f2.write('\n=====================================================\n')
+          f2.write('\n=====================================================\n')
+          f2.write('\n=====================================================\n')
+        f2.write('\n===TODO==================================================\n')
+        f2.close()
+        print "\ndone"
+        exit()
+
+
+
+        for verb in all_verbs:
+          print verb
+          f.write('\n=====================================================\n')
+          f.write('negative verbs = %s\n' % verb)
+          f.write('\n=====================================================\n')
+          f.write('\n=====================================================\n')
+          f.write('\n=====================================================\n')
+        f.write('\n===TODO==================================================\n')
         f.close()
         exit()
 
@@ -266,7 +323,6 @@ class DemiseAnalyzer(object):
             f.write('\n%s   ' % elem[1])
         f.write('\n=====================================================\n')
         """
-        exit()
         nouns = [noun for noun in nouns if self.classifier.classify(utils.word_feats(noun))=='neg']
         verbs = [pair[0] for pair in sorted(self.determine_sentiment(verbs,True).items(), key=lambda item: item[1], reverse=True)]
         return [nouns[:15],verbs[:15]]

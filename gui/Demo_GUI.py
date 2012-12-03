@@ -43,7 +43,7 @@ class DemiseAnalyzerDemo(QtGui.QMainWindow):
     #self.show()
     if ok and text != "":
       self.statusBar().showMessage('Processing User Query...')
-      google_results = self.analyzer.online_search(num_bad_words=1,num_google_pages=1,activity_query=text)
+      #google_results = self.analyzer.online_search(num_bad_words=1,num_google_pages=1,activity_query=text)
       analyzer_output = self.analyzer.rocchio(3000)
       #analyzer_output = self.analyzer.createResults(google_results)
 
