@@ -24,7 +24,8 @@ from apiclient.discovery import build
 class DemiseAnalyzer(object):
     def __init__(self):
         # set the danger level to neutral
-        self.danger = "neutral"
+        self.danger_r1 = "neutral" # Rocchio with Naive Bayes
+        self.danger_r2 = "neutral" # Rocchio with pos/neg word lists
 
         # instantiate word net
         lmtzr = WordNetLemmatizer()
@@ -46,10 +47,10 @@ class DemiseAnalyzer(object):
         del positive_words_import
 
         # set up structure for classifying web search results
-        self.weblinks = []
-        self.__trainNaiveBayes__()
+        self.web_links = []
+        self.train_naive_bayes()
 
-    def __trainNaiveBayes__(self):
+    def train_naive_bayes(self):
         negids = movie_reviews.fileids('neg')
         posids = movie_reviews.fileids('pos')
         negfeats = [(utils.word_feats(movie_reviews.words(fileids=[f])),'neg') for f in negids]
@@ -57,7 +58,7 @@ class DemiseAnalyzer(object):
         trainfeats = negfeats[:] + posfeats[:]
         self.classifier = NaiveBayesClassifier.train(trainfeats)
 
-    def pre_fabricate(self, results):
+    def preprocess_information(self, results):
         # this is a temoprary method until we get the correct JSONs from the Google search
         snippets = list()
         for result in results:
@@ -65,7 +66,7 @@ class DemiseAnalyzer(object):
                 snippets.append(item["snippet"])
         return snippets
 
-    def onlineSearch(self,num_bad_words,num_google_pages,activity_query):
+    def online_search(self,num_bad_words,num_google_pages,activity_query):
         print "User activity_query = %s" % (activity_query)
         print "--------------------------------------------------------"
         print "Building service client..."
@@ -73,7 +74,8 @@ class DemiseAnalyzer(object):
         print "complete!"
         qresults = []
         num_google_pages = min(num_google_pages,10)
-        add_words = [''] + random.sample(self.negative_words,num_bad_words)
+        add_words = ['death']
+        #add_words = ['death'] + random.sample(self.negative_words,num_bad_words)
         print "# of randomly sampled negative terms: %d" % (num_bad_words)
         print "Negative term samples:",add_words
         print "--------------------------------------------------------"
@@ -87,11 +89,13 @@ class DemiseAnalyzer(object):
                                                 num=10,
                                                 hq=add_words[j]).execute())
         results = []
+        # Clear current web_links
+        self.web_links = []
         for page in qresults:
           for item in page['items']:
             snip = item['snippet'].encode('utf-8')
             link = item['link'].encode('utf-8')
-            self.weblinks.append(link)
+            self.web_links.append(link)
             results.append(snip)
         print "Completed all queries, displaying snippet results below:"
         print "--------------------------------------------------------"
@@ -100,67 +104,93 @@ class DemiseAnalyzer(object):
         print "--------------------------------------------------------"
         return results
 
-    def OneDimRocchio_with_NaiveBayes(self,max_num_sentences):
-        print "Called OneDimRocchio"
+    def rocchio(self,max_num_sentences):
+        print 'Running rocchio()'
         poscount, negcount = 0, 0
         html_sentences = []
-        for url in self.weblinks:
+        for url in self.web_links:
           html_sentences += scrapWebPage(url)
-          if len(html_sentences) >= max_num_sentences: break
-        for sent in html_sentences:
+        html_sentences = random.sample(html_sentences,min(max_num_sentences,len(html_sentences)))
+        print "Processing %d sentences." % len(html_sentences)
+
+        for i in xrange(len(html_sentences)):
+          sent = html_sentences[i]
           sentiment = self.classifier.classify(utils.word_feats(sent))
           if sentiment == 'pos':
             poscount += 1
           else:
             negcount += 1
+
         sentiment = 'neutral'
         if poscount > negcount:
           sentiment = 'safe'
         elif poscount < negcount:
           sentiment = 'dangerous'
         level = 'mildly'
-        if poscount >= 1.5*negcount or negcount >= 1.5*negcount:
+        if poscount >= 1.25*negcount or negcount >= 1.25*negcount:
           level = 'relatively'
-        elif poscount >= 2*negcount or negcount >= 2*poscount:
+        elif poscount >= 1.5*negcount or negcount >= 1.5*poscount:
           level = 'very'
 
-        self.danger = level + ' ' + sentiment
-        return self.createResults(html_sentences)
+        self.danger_r1 = level + ' ' + sentiment
 
-    def createResults(self, snippets):
+        l1 = self.create_results(html_sentences)
+        return l1
+
+    def create_results(self, snippets):
+        print 'Running nltk subroutines in create_results()'
         # create one long string from a list of strings appending a period to the end of each string
-        str = string.join(snippets,". ")
+        sentences = string.join(snippets,". ")
+        # remove punctuation marks (comma,period,etc...)
+        #for c in string.punctuation:
+        #  sentences = sentences.replace(c,"")
         # split string into sentences
-        sentences = nltk.sent_tokenize(str)
+        sentences = nltk.sent_tokenize(sentences)
         # create a list of all tokens in each sentence
         sentences = [list(set(nltk.word_tokenize(sent))) for sent in sentences]
         # tag parts of speech for each word
         sentences = [nltk.pos_tag(sent) for sent in sentences]
         # pull out verbs
+        #grammar = r"""
+        #          CHUNK:
+        #            {<V.*>}
+        #            }<VBZ>{
+        #          """
         grammar = r"""
-                  CHUNK:
-                  {<V.*>}
-                  }<VBZ>{
+                  CHUNK0: {<V.*>}
+                          }<VBZ>{
+                  CHUNK1: {<VBD>|<VBN>}
+                  CHUNK2: {<VBZ><RB>}
+                  CHUNK3: {<VBN><IN><DT><NN>}
+                  CHUNK4: {<NN><VBN|VBZ>*}
                   """
         cp = nltk.RegexpParser(grammar)
         verbs = []
+        nouns = []
         lmtzr = WordNetLemmatizer()
         for sentence in sentences:
             tree = cp.parse(sentence)
             for subtree in tree.subtrees():
-                if subtree.node == 'CHUNK':
-                    # map verbs to word-net of closest root word
+                # Verbs
+                if subtree.node == 'CHUNK0':
                     verbs.append(lmtzr.lemmatize(subtree[0][0],'v'))
+                if subtree.node == 'CHUNK1':
+                    verbs.append(lmtzr.lemmatize(subtree[0][0],'v'))
+                if subtree.node == 'CHUNK2':
+                    verbs.append(lmtzr.lemmatize(subtree[0][0],'v'))
+                # Nouns
+                if subtree.node == 'CHUNK3':
+                    nouns.append((lmtzr.lemmatize(subtree[0][0],'n')))
+                elif subtree.node == 'CHUNK4':
+                    nouns.append((lmtzr.lemmatize(subtree[0][0],'n')))
+        nouns = list(set(nouns))
+        nouns = [noun for noun in nouns if self.classifier.classify(utils.word_feats(noun))=='neg']
+        verbs = [pair[0] for pair in sorted(self.determine_sentiment(verbs,True).items(), key=lambda item: item[1], reverse=True)]
+        return [nouns[:15],verbs[:15]]
 
-        # return results in order of liklihood
-        return [pair[0] for pair in sorted( self.__sentimentDetermination__(verbs).items(),
-                                            key=lambda item: item[1],
-                                            reverse = True)]
-
-    def __sentimentDetermination__(self, verbs):
+    def determine_sentiment(self, verbs, record_danger):
         # count the number of times each verb occurs
         countedVerbs = dict(Counter(verbs))
-
         positiveVerbs = 0
         negativeVerbs = 0
 
@@ -181,26 +211,25 @@ class DemiseAnalyzer(object):
                 del countedVerbs[word]
 
         negativeVerbs = sum(countedVerbs.values())
-
-        # set danger level based on TF:
-        #   difference of 0 - 10 neutral
-        #   difference of 11 - 25 dangerous/safe
-        #   difference of 26< very dangerous/safe
-
         danger = positiveVerbs - negativeVerbs
 
-        if danger > 25:
-            self.danger = "very safe"
-        elif danger > 10:
-            self.danger = "safe"
-        elif danger > -11:
-            self.danger = "neutral"
-        elif danger > -26:
-            self.danger = "dangerous"
-        else:
-            self.danger = "very dangerous"
+        if record_danger:
+          if danger > 0:
+            if positiveVerbs > 1.25*negativeVerbs:
+              self.danger_r2 = "very safe"
+            else:
+              self.danger_r2 = "safe"
+          elif danger == 0:
+            self.danger_r2 = "neutral"
+          elif danger < 0:
+            if negativeVerbs > 1.25*positiveVerbs:
+              self.danger_r2 = "dangerous"
+            else:
+              self.danger_r2 = "very dangerous"
 
         return countedVerbs
+
+#####################################################################################
 
 def main(): # For testing purposes
     '''
@@ -212,7 +241,7 @@ def main(): # For testing purposes
     results = utils.read_results()
     print "\n_____________________________________________________________\nWhen doing this activity you are most likely to: "
     count = 1
-    for item in analyzer.createResults(analyzer.pre_fabricate(results)):
+    for item in analyzer.create_results(analyzer.preprocess_information(results)):
         print count,item
         count += 1
     print "_____________________________________________________________\n"
