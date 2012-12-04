@@ -224,7 +224,7 @@ class DemiseAnalyzer(object):
         verbs = [verb for verb in verbs if len(verb)!=0]
         f = open('verbs.txt','w')
         for verb in verbs:
-          print verb
+          #print verb
           f.write('\n=====================================================\n')
           f.write('2.negative verbs = %s\n' % verb)
           f.write('\n=====================================================\n')
@@ -235,7 +235,7 @@ class DemiseAnalyzer(object):
         nouns = [noun for noun in nouns if len(noun)!=0]
         f2 = open('nouns.txt','w')
         for noun in nouns:
-          print nouns
+          #print nouns
           f2.write('\n=====================================================\n')
           f2.write('1.negative nouns = %s\n' % noun)
           f2.write('\n=====================================================\n')
@@ -244,6 +244,8 @@ class DemiseAnalyzer(object):
         f2.write('\n===TODO==================================================\n')
         f2.close()
         print "\ndone"
+        for i in xrange(len(nouns)):
+          print verbs[i],nouns[i]
         exit()
 
 
