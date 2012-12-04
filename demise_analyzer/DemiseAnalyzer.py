@@ -188,7 +188,7 @@ class DemiseAnalyzer(object):
 
         #########################################################################3
         # Identify negative cause/effect relationships
-        grammar2 = r'CHUNK: {<NN.*>}'
+        grammar2 = r'CHUNK: {<NNP>}'
         cp_cause = nltk.RegexpParser(grammar2)
         #########################################################################3
 
@@ -221,7 +221,7 @@ class DemiseAnalyzer(object):
           nouns.append(some_nouns)
         f0.close()
 
-        verbs = [verb for verb in verbs if len(verb)!=0]
+        #verbs = [verb for verb in verbs if len(verb)!=0]
         f = open('verbs.txt','w')
         for verb in verbs:
           #print verb
@@ -232,7 +232,7 @@ class DemiseAnalyzer(object):
           f.write('\n=====================================================\n')
         f.write('\n===TODO==================================================\n')
         f.close()
-        nouns = [noun for noun in nouns if len(noun)!=0]
+        #nouns = [noun for noun in nouns if len(noun)!=0]
         f2 = open('nouns.txt','w')
         for noun in nouns:
           #print nouns
@@ -245,7 +245,9 @@ class DemiseAnalyzer(object):
         f2.close()
         print "\ndone"
         for i in xrange(len(nouns)):
-          print verbs[i],nouns[i]
+          if len(nouns[i]) == 0 or len(verbs[i]) == 0:
+            continue
+          print random.sample(verbs[i],1)[0].lower(),random.sample(nouns[i],1)[0].lower()
         exit()
 
 
