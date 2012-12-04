@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 #                                   #
 #                                   #
 #   CSCE 470 Final Project          #
@@ -10,9 +9,10 @@
 #                                   #
 
 from __future__ import division
-import utils, operator, re, itertools, math, random, time, nltk, string
+import operator, re, itertools, math, random, nltk, string
 from collections import defaultdict, Counter
-from webScraper import scrapWebPage
+from web_scraper import scrap_web_page
+from features import word_feats
 
 import nltk.classify.util
 from nltk.classify import NaiveBayesClassifier
@@ -53,9 +53,9 @@ class DemiseAnalyzer(object):
     def train_naive_bayes(self):
         negids = movie_reviews.fileids('neg')
         posids = movie_reviews.fileids('pos')
-        negfeats = [(utils.word_feats(movie_reviews.words(fileids=[f])),'neg') for f in negids]
-        posfeats = [(utils.word_feats(movie_reviews.words(fileids=[f])),'pos') for f in posids]
-        trainfeats = negfeats[:] + posfeats[:]
+        negfeats = [(word_feats(movie_reviews.words(fileids=[f])),'neg') for f in negids]
+        posfeats = [(word_feats(movie_reviews.words(fileids=[f])),'pos') for f in posids]
+        trainfeats = negfeats + posfeats
         self.classifier = NaiveBayesClassifier.train(trainfeats)
 
     def preprocess_information(self, results):
@@ -66,6 +66,16 @@ class DemiseAnalyzer(object):
                 snippets.append(item["snippet"])
         return snippets
 
+    def min_proximity_query(self,verb_set,noun_set,sentence):
+        pack = ('','',len(sentence)) # (verb,noun,min_dist)
+        for verb in verb_set:
+          for noun in noun_set:
+            dist = abs(sentence.find(verb) - sentence.find(noun))
+            if dist < pack[2] and self.classifier.classify(word_feats(verb+' '+noun))=='neg':
+              pack = (verb,noun,dist)
+        return pack[0].lower(),pack[1].lower()
+
+
     def online_search(self,num_bad_words,num_google_pages,activity_query):
         print "User activity_query = %s" % (activity_query)
         print "--------------------------------------------------------"
@@ -74,8 +84,7 @@ class DemiseAnalyzer(object):
         print "complete!"
         qresults = []
         num_google_pages = min(num_google_pages,10)
-        add_words = ['death']
-        #add_words = ['death'] + random.sample(self.negative_words,num_bad_words)
+        add_words = [''] + random.sample(['die','death','kill','accident','injury','hurt'],num_bad_words)
         print "# of randomly sampled negative terms: %d" % (num_bad_words)
         print "Negative term samples:",add_words
         print "--------------------------------------------------------"
@@ -106,17 +115,16 @@ class DemiseAnalyzer(object):
 
     def rocchio(self,max_num_sentences):
         print 'Running rocchio()'
-        """
         poscount, negcount = 0, 0
         html_sentences = []
         for url in self.web_links:
-          html_sentences += scrapWebPage(url)
+          html_sentences += scrap_web_page(url)
         html_sentences = random.sample(html_sentences,min(max_num_sentences,len(html_sentences)))
         print "Processing %d sentences." % len(html_sentences)
 
         for i in xrange(len(html_sentences)):
           sent = html_sentences[i]
-          sentiment = self.classifier.classify(utils.word_feats(sent))
+          sentiment = self.classifier.classify(word_feats(sent))
           if sentiment == 'pos':
             poscount += 1
           else:
@@ -134,11 +142,13 @@ class DemiseAnalyzer(object):
           level = 'very'
 
         self.danger_r1 = level + ' ' + sentiment
+
         """
         f = open('online_sentences.txt','r')
         html_sentences = []
         for line in f:
           html_sentences.append(line)
+        """
 
         l1 = self.create_results(html_sentences)
         return l1
@@ -152,11 +162,11 @@ class DemiseAnalyzer(object):
         #  sentences = sentences.replace(c,"")
         # split string into sentences
         #sentences = nltk.sent_tokenize(sentences)
+
         # create a list of all tokens in each sentence
         sentences = [list(set(nltk.word_tokenize(sent))) for sent in orig_sentences]
         # tag parts of speech for each word
         sentences = [nltk.pos_tag(sent) for sent in sentences]
-        #########################################################################3
         grammar = r"""
                   CHUNK0: {<V.*>}
                           }<VBZ>{
@@ -165,14 +175,13 @@ class DemiseAnalyzer(object):
                   CHUNK3: {<VBN><IN><DT><NN>}
                   """
         cp_effect = nltk.RegexpParser(grammar)
-        #########################################################################3
         all_verbs = []
         neg_sentences = []
 
         for i in xrange(len(sentences)):
           original = orig_sentences[i]
           sentence = sentences[i]
-          if self.classifier.classify(utils.word_feats(original)) == 'neg':
+          if self.classifier.classify(word_feats(original)) == 'neg':
             if not set(self.negative_words).isdisjoint(original.split(' ')):
               neg_sentences.append(original)
           tree = cp_effect.parse(sentence)
@@ -187,7 +196,7 @@ class DemiseAnalyzer(object):
 
         #########################################################################3
         # Identify negative cause/effect relationships
-        grammar2 = r'CHUNK: {<NNP>}'
+        grammar2 = r'CHUNK: {<NN|NP>}'
         cp_cause = nltk.RegexpParser(grammar2)
         #########################################################################3
 
@@ -220,115 +229,61 @@ class DemiseAnalyzer(object):
           nouns.append(some_nouns)
         f0.close()
 
-        #verbs = [verb for verb in verbs if len(verb)!=0]
+        neg_verbs = []
+        for v_set in verbs:
+          sub_neg_verbs = []
+          for verb in v_set:
+            if self.classifier.classify(word_feats(verb)) == 'neg':
+              sub_neg_verbs.append(verb)
+          neg_verbs.append(sub_neg_verbs)
+
         f = open('verbs.txt','w')
         for verb in verbs:
-          #print verb
-          f.write('\n=====================================================\n')
           f.write('2.negative verbs = %s\n' % verb)
-          f.write('\n=====================================================\n')
-          f.write('\n=====================================================\n')
-          f.write('\n=====================================================\n')
-        f.write('\n===TODO==================================================\n')
         f.close()
-        #nouns = [noun for noun in nouns if len(noun)!=0]
+
         f2 = open('nouns.txt','w')
         for noun in nouns:
-          #print nouns
-          f2.write('\n=====================================================\n')
           f2.write('1.negative nouns = %s\n' % noun)
-          f2.write('\n=====================================================\n')
-          f2.write('\n=====================================================\n')
-          f2.write('\n=====================================================\n')
-        f2.write('\n===TODO==================================================\n')
         f2.close()
-        print "\ndone"
-        for i in xrange(len(nouns)):
-          if len(nouns[i]) == 0 or len(verbs[i]) == 0:
+
+        phrases = []
+        for i in xrange(len(neg_verbs)):
+          verb_set = neg_verbs[i]
+          noun_set = nouns[i]
+          if len(verb_set)==0 or len(noun_set)==0:
             continue
-          print random.sample(verbs[i],1)[0].lower(),random.sample(nouns[i],1)[0].lower()
+          v,n = self.min_proximity_query(verb_set,noun_set,orig_sentences[i])
+          if len(v)>2 and len(n)>2:
+            ss = v + ' ' + n
+            phrases.append(v+' '+n)
+
+        phrases = list(set(phrases))
+        print "len phrases = ",len(phrases)
+        print "len nouns = ",len(nouns)
+        print "len verbs = ",len(verbs)
+        print orig_sentences[-1]
+
+        return random.sample(phrases,15)
+
+        ##############################################3
+        print "SHOULD NEVER SEE THIS LINE!!!"
         exit()
-
-
+        ##############################################3
 
         for verb in all_verbs:
           print verb
-          f.write('\n=====================================================\n')
           f.write('negative verbs = %s\n' % verb)
-          f.write('\n=====================================================\n')
-          f.write('\n=====================================================\n')
-          f.write('\n=====================================================\n')
-        f.write('\n===TODO==================================================\n')
         f.close()
-        exit()
 
-        """
-          # Nouns
-          tree = cp_cause.parse(sent)
-          some_nouns = []
-          for subtree in tree.subtrees():
-            if subtree.node == 'CHUNK':
-              some_nouns.append(subtree[0][0])
-          nouns.append(some_nouns)
-        """
-
-        """
         f = open('information.txt','w')
         for sent in neg_sentences:
           f.write('negative sentence = %s\n' % sent[1])
         f.close()
-        """
 
-
-        """
-        nouns = list(set(nouns))
-        pairings = []
-        for verb in verbs:
-          pairing = (verb[1],[])
-          for noun in nouns:
-            if verb[0] == noun[0]:
-              pairing[1].append(noun[1])
-              break
-          ss = ' '.join(pairing[1])
-
-          pairings.append(pairing)
-
-        f = open('information.txt','w')
-        f.write('\n=====================================================\n')
-        f.write('pairings :: %d\n' % len(pairings))
-        count = 0
-        for i in xrange(len(pairings)):
-          for j in xrange(len(pairings[i][1])):
-            elem = pairings[i][1][j]
-            f.write('%s   ' % elem)
-          f.write('\n----------------------------------------------------\n')
-        f.write('\n=====================================================\n')
-        f.write('nouns :: %d\n' % len(nouns))
-        count = 0
-        for i in xrange(len(nouns)):
-          elem = nouns[i]
-          count += 1;
-          if count < 9:
-            f.write('%s   ' % elem[1])
-          else:
-            count = 0
-            f.write('\n%s   ' % elem[1])
-        f.write('\n=====================================================\n')
-        f.write('verbs :: %d\n' % len(verbs))
-        count = 0
-        for i in xrange(len(verbs)):
-          elem = verbs[i]
-          count += 1
-          if count < 9:
-            f.write('%s   ' % elem[1])
-          else:
-            count = 0
-            f.write('\n%s   ' % elem[1])
-        f.write('\n=====================================================\n')
-        """
-        nouns = [noun for noun in nouns if self.classifier.classify(utils.word_feats(noun))=='neg']
+        nouns = [noun for noun in nouns if self.classifier.classify(word_feats(noun))=='neg']
         verbs = [pair[0] for pair in sorted(self.determine_sentiment(verbs,True).items(), key=lambda item: item[1], reverse=True)]
-        return [nouns[:15],verbs[:15]]
+        return verbs[:15]
 
     def determine_sentiment(self, verbs, record_danger):
         # count the number of times each verb occurs
@@ -371,25 +326,3 @@ class DemiseAnalyzer(object):
 
         return countedVerbs
 
-#####################################################################################
-
-def main(): # For testing purposes
-    '''
-    users_import = set(line.strip() for line in open('mars_tweets_intermediate.json'))
-    cluster = Cluster()
-    cluster.vectorize(iter(users_import))
-    '''
-    analyzer = DemiseAnalyzer()
-    results = utils.read_results()
-    print "\n_____________________________________________________________\nWhen doing this activity you are most likely to: "
-    count = 1
-    for item in analyzer.create_results(analyzer.preprocess_information(results)):
-        print count,item
-        count += 1
-    print "_____________________________________________________________\n"
-
-if __name__=="__main__":
-    start_time = time.time()
-    main()
-    end_time = time.time()
-    print 'done with constructing results after %.3f seconds'%(end_time-start_time)
