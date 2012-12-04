@@ -28,13 +28,13 @@ class DemiseAnalyzer(object):
         self.danger_r2 = "neutral" # Rocchio with pos/neg word lists
 
         # instantiate word net
-        lmtzr = WordNetLemmatizer()
+        self.lmtzr = WordNetLemmatizer()
 
         # import negative words
         self.negative_words = []
         negative_words_import = set(line.strip() for line in open('./data/negative_words.txt'))
         for word in negative_words_import:
-            self.negative_words.append(lmtzr.lemmatize(word,'v'))
+            self.negative_words.append(self.lmtzr.lemmatize(word,'v'))
         self.negative_words = set(self.negative_words)
         del negative_words_import
 
@@ -42,7 +42,7 @@ class DemiseAnalyzer(object):
         self.positive_words = []
         positive_words_import = set(line.strip() for line in open('./data/positive_words.txt'))
         for word in positive_words_import:
-            self.positive_words.append(lmtzr.lemmatize(word,'v'))
+            self.positive_words.append(self.lmtzr.lemmatize(word,'v'))
         self.positive_words = set(self.positive_words)
         del positive_words_import
 
@@ -168,7 +168,6 @@ class DemiseAnalyzer(object):
         #########################################################################3
         all_verbs = []
         neg_sentences = []
-        lmtzr = WordNetLemmatizer()
 
         for i in xrange(len(sentences)):
           original = orig_sentences[i]
@@ -180,7 +179,7 @@ class DemiseAnalyzer(object):
           for subtree in tree.subtrees():
             # Collect meaningful verbs
             if subtree.node in ['CHUNK0','CHUNK1','CHUNK2','CHUNK3']:
-              term = lmtzr.lemmatize(subtree[0][0],'v')
+              term = self.lmtzr.lemmatize(subtree[0][0],'v')
               all_verbs.append(term)
 
         #all_verbs = [pair[0] for pair in sorted(self.determine_sentiment(all_verbs,True).items(), key=lambda item: item[1], reverse=True)]
@@ -206,7 +205,7 @@ class DemiseAnalyzer(object):
           tree1 = cp_effect.parse(sent)
           for subtree in tree1.subtrees():
             if subtree.node in ['CHUNK0','CHUNK1','CHUNK2','CHUNK3']:
-              term = lmtzr.lemmatize(subtree[0][0],'v')
+              term = self.lmtzr.lemmatize(subtree[0][0],'v')
               #print 'subtree[0] = ',subtree[0]
               some_verbs.append(term)
           verbs.append(some_verbs)
@@ -215,7 +214,7 @@ class DemiseAnalyzer(object):
           tree2 = cp_cause.parse(sent)
           for subtree in tree2.subtrees():
             if subtree.node in ['CHUNK']:
-              term = lmtzr.lemmatize(subtree[0][0],'n')
+              term = self.lmtzr.lemmatize(subtree[0][0],'n')
               #print 'subtree[0] = ',subtree[0]
               some_nouns.append(term)
           nouns.append(some_nouns)
