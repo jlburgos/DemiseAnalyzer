@@ -58,8 +58,9 @@ class DemiseAnalyzer(object):
         trainfeats = negfeats + posfeats
         self.classifier = NaiveBayesClassifier.train(trainfeats)
 
+    #deprecated
     def preprocess_information(self, results):
-        # this is a temoprary method until we get the correct JSONs from the Google search
+        # this is a temporary method until we get the correct JSONs from the Google search
         snippets = list()
         for result in results:
             for item in result["items"]:
@@ -74,7 +75,6 @@ class DemiseAnalyzer(object):
             if dist < pack[2] and self.classifier.classify(word_feats(verb+' '+noun))=='neg':
               pack = (verb,noun,dist)
         return pack[0].lower(),pack[1].lower()
-
 
     def online_search(self,num_bad_words,num_google_pages,activity_query):
         print "User activity_query = %s" % (activity_query)
@@ -130,6 +130,7 @@ class DemiseAnalyzer(object):
           else:
             negcount += 1
 
+        # For Rocchio V1
         sentiment = 'neutral'
         if poscount > negcount:
           sentiment = 'safe'
@@ -142,31 +143,16 @@ class DemiseAnalyzer(object):
           level = 'very'
 
         self.danger_r1 = level + ' ' + sentiment
-
-        """
-        f = open('online_sentences.txt','r')
-        html_sentences = []
-        for line in f:
-          html_sentences.append(line)
-        """
-
-        l1 = self.create_results(html_sentences)
-        return l1
+        return self.create_results(html_sentences)
 
     def create_results(self, orig_sentences):
         print 'Running nltk subroutines in create_results()'
-        # create one long string from a list of strings appending a period to the end of each string
-        #sentences = string.join(snippets,". ")
-        # remove punctuation marks (comma,period,etc...)
-        #for c in string.punctuation:
-        #  sentences = sentences.replace(c,"")
-        # split string into sentences
-        #sentences = nltk.sent_tokenize(sentences)
-
         # create a list of all tokens in each sentence
         sentences = [list(set(nltk.word_tokenize(sent))) for sent in orig_sentences]
         # tag parts of speech for each word
         sentences = [nltk.pos_tag(sent) for sent in sentences]
+
+        # Verb Extraction Grammar
         grammar = r"""
                   CHUNK0: {<V.*>}
                           }<VBZ>{
@@ -174,61 +160,72 @@ class DemiseAnalyzer(object):
                   CHUNK2: {<VBZ><RB>}
                   CHUNK3: {<VBN><IN><DT><NN>}
                   """
+
+        # Noun Extraction Grammar
+        grammar2 = r'CHUNK: {<NN|NP>}'
+
+        # Verb Regex Parser (Finds effects)
         cp_effect = nltk.RegexpParser(grammar)
+        # Noun Regex Parser (Finds causes)
+        cp_cause = nltk.RegexpParser(grammar2)
+
         all_verbs = []
         neg_sentences = []
 
         for i in xrange(len(sentences)):
           original = orig_sentences[i]
           sentence = sentences[i]
+
+          # Check if the original sentence is found negative by naive bayes
           if self.classifier.classify(word_feats(original)) == 'neg':
+            # If sentence contains a negative word append it to neg_sentences
             if not set(self.negative_words).isdisjoint(original.split(' ')):
               neg_sentences.append(original)
+
+          # Collect all verbs
           tree = cp_effect.parse(sentence)
           for subtree in tree.subtrees():
-            # Collect meaningful verbs
             if subtree.node in ['CHUNK0','CHUNK1','CHUNK2','CHUNK3']:
               term = self.lmtzr.lemmatize(subtree[0][0],'v')
               all_verbs.append(term)
 
-        #all_verbs = [pair[0] for pair in sorted(self.determine_sentiment(all_verbs,True).items(), key=lambda item: item[1], reverse=True)]
+        # Record overall sentiment for Rocchio w/ database through analysis of all the verbs
         self.determine_sentiment(all_verbs,True)
 
-        #########################################################################3
-        # Identify negative cause/effect relationships
-        grammar2 = r'CHUNK: {<NN|NP>}'
-        cp_cause = nltk.RegexpParser(grammar2)
-        #########################################################################3
-
+        # Find the part-of-speach for each of these verbs
         mod_neg_sentences = [list(set(nltk.word_tokenize(sent))) for sent in neg_sentences]
         mod_neg_sentences = [nltk.pos_tag(sent) for sent in mod_neg_sentences]
+
         verbs = []
         nouns = []
-        f0 = open('information.txt','w')
+
+        # Gather only the most negative sentences and process them with nltk
+        #
+        # The reason behind this is that we want to have two lists produced:
+        #
+        # List verbs[] and List nouns[], both of which are lists of lists where
+        # each sublist corresponds to an individual 'negative sentence'.
         for sent in mod_neg_sentences:
-          f0.write('\n=====================================================\n')
-          f0.write('2.negative sentences = %s\n' % sent)
-          f0.write('\n===TODO==================================================\n')
+
           # Verbs
           some_verbs = []
           tree1 = cp_effect.parse(sent)
           for subtree in tree1.subtrees():
             if subtree.node in ['CHUNK0','CHUNK1','CHUNK2','CHUNK3']:
               term = self.lmtzr.lemmatize(subtree[0][0],'v')
-              #print 'subtree[0] = ',subtree[0]
               some_verbs.append(term)
           verbs.append(some_verbs)
+
           # Nouns
           some_nouns = []
           tree2 = cp_cause.parse(sent)
           for subtree in tree2.subtrees():
             if subtree.node in ['CHUNK']:
               term = self.lmtzr.lemmatize(subtree[0][0],'n')
-              #print 'subtree[0] = ',subtree[0]
               some_nouns.append(term)
           nouns.append(some_nouns)
-        f0.close()
 
+        # Take all the verbs we just found from the negative sentences
         neg_verbs = []
         for v_set in verbs:
           sub_neg_verbs = []
@@ -237,16 +234,7 @@ class DemiseAnalyzer(object):
               sub_neg_verbs.append(verb)
           neg_verbs.append(sub_neg_verbs)
 
-        f = open('verbs.txt','w')
-        for verb in verbs:
-          f.write('2.negative verbs = %s\n' % verb)
-        f.close()
-
-        f2 = open('nouns.txt','w')
-        for noun in nouns:
-          f2.write('1.negative nouns = %s\n' % noun)
-        f2.close()
-
+        # Find the most negative verb/noun pairs and produce 'good' phrases
         phrases = []
         for i in xrange(len(neg_verbs)):
           verb_set = neg_verbs[i]
@@ -262,8 +250,8 @@ class DemiseAnalyzer(object):
         print "len phrases = ",len(phrases)
         print "len nouns = ",len(nouns)
         print "len verbs = ",len(verbs)
-        print orig_sentences[-1]
 
+        # TODO :: For now we are returning 15 randomly sampled results, fix this!
         return random.sample(phrases,15)
 
         ##############################################3
@@ -271,19 +259,9 @@ class DemiseAnalyzer(object):
         exit()
         ##############################################3
 
-        for verb in all_verbs:
-          print verb
-          f.write('negative verbs = %s\n' % verb)
-        f.close()
-
-        f = open('information.txt','w')
-        for sent in neg_sentences:
-          f.write('negative sentence = %s\n' % sent[1])
-        f.close()
-
-        nouns = [noun for noun in nouns if self.classifier.classify(word_feats(noun))=='neg']
-        verbs = [pair[0] for pair in sorted(self.determine_sentiment(verbs,True).items(), key=lambda item: item[1], reverse=True)]
-        return verbs[:15]
+        #nouns = [noun for noun in nouns if self.classifier.classify(word_feats(noun))=='neg']
+        #verbs = [pair[0] for pair in sorted(self.determine_sentiment(verbs,True).items(), key=lambda item: item[1], reverse=True)]
+        #return verbs[:15]
 
     def determine_sentiment(self, verbs, record_danger):
         # count the number of times each verb occurs
@@ -310,6 +288,7 @@ class DemiseAnalyzer(object):
         negativeVerbs = sum(countedVerbs.values())
         danger = positiveVerbs - negativeVerbs
 
+        # For Rocchio V2
         if record_danger:
           if danger > 0:
             if positiveVerbs > 1.25*negativeVerbs:
