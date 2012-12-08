@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import sys,time
+import sys,time,string
 sys.path.append("./demise_analyzer")
 
 from DemiseAnalyzer import DemiseAnalyzer
@@ -23,7 +23,7 @@ class DemiseAnalyzerDemo(QtGui.QMainWindow):
     self.btn = QtGui.QPushButton('Click Me!', self)
     self.btn.move(20, 20)
     self.btn.setToolTip('Click this button to provide an activity query.')
-    self.btn.clicked.connect(self.showDialog)
+    self.btn.clicked.connect(self.show_dialog)
 
     # Configure Window
     self.setGeometry(300, 300, 400, 250)
@@ -38,13 +38,22 @@ class DemiseAnalyzerDemo(QtGui.QMainWindow):
     # End Message
     print 'Application ready for action!'
 
-  def showDialog(self):
+  def process_query(self,text):
+    text = reduce(lambda text,c: text.replace(c,''), string.punctuation, text)
+    text = str(text).split()
+    tmp = ''
+    for word in text:
+      tmp += '"'+word+'"+'
+    return tmp[:-1]
+
+  def show_dialog(self):
     self.statusBar().showMessage('Awaiting User Query ...')
     text, ok = QtGui.QInputDialog.getText(self, 'Provide Activity', 'User Activity:')
     self.statusBar().showMessage('Processing User Query...')
     #self.show()
     if ok and text != "":
       start_time = time.time()
+      text = self.process_query(text)
       google_snippets = self.analyzer.online_search(num_bad_words=1,num_google_pages=1,activity_query=text)
       analyzer_output = self.analyzer.rocchio(self.MAX_SENTENCES)
       print "\n_____________________________________________________________\n"
