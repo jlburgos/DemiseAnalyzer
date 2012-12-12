@@ -20,8 +20,8 @@ from nltk.corpus import movie_reviews
 from nltk.stem.wordnet import WordNetLemmatizer
 
 from sklearn import linear_model
-
 from apiclient.discovery import build
+from nltk_thread import myThread
 
 class DemiseAnalyzer(object):
     def __init__(self):
@@ -33,6 +33,7 @@ class DemiseAnalyzer(object):
         self.lmtzr = WordNetLemmatizer()
 
         # import negative words
+        self.negative_search_terms = ['die','death','kill','accident','injury','hurt']
         self.negative_words = []
         negative_words_import = set(line.strip() for line in open('./data/negative_words.txt'))
         for word in negative_words_import:
@@ -66,41 +67,32 @@ class DemiseAnalyzer(object):
         #self.regr = linear_model.LinearRegression()
         #self.regr.fit(jk
 
-    #deprecated
-    def preprocess_information(self, results):
-        # this is a temporary method until we get the correct JSONs from the Google search
-        snippets = list()
-        for result in results:
-            for item in result["items"]:
-                snippets.append(item["snippet"])
-        return snippets
-
     def min_proximity_query(self,verb_set,noun_set,sentence):
         pack = ('','',len(sentence)) # (verb,noun,min_dist)
         for verb in verb_set:
+          if verb not in sentence: continue
           for noun in noun_set:
+            if noun not in sentence: continue
             dist = abs(sentence.index(verb) - sentence.index(noun))
             if dist < pack[2] and self.classifier.classify(word_feats(verb+' '+noun))=='neg':
               pack = (verb,noun,dist)
         return pack[0].lower(),pack[1].lower()
 
-    def proximity_semantic_score(i,orig_sentences):
+    def proximity_semantic_score(self,i,sentences):
         # initialize score to 0
         score = 0
         # read the current sentence and the two sentences before and after it
-        low = i-2
-        high = i+2
-        idx = low
-        if i-2 < 0:
-          idx = 0
-        if i+2 > len(orig_sentences):
-          high = len(orig_sentences)
-        negs = self.negative_words
-        while idx <= high:
-          score += len(set(negs) & set(orig_sentences[idx]))
+        for sent in sentences:
+          for word in sent:
+            if self.classifier.classify(word_feats(word)) == 'neg':
+              score += 1
+              for neg in self.negative_search_terms:
+                if neg == word:
+                  score += 1000
         return score
 
     def online_search(self,num_bad_words,num_google_pages,activity_query):
+        print "\n\n========================================================"
         print "User activity_query = %s" % (activity_query)
         print "--------------------------------------------------------"
         print "Building service client..."
@@ -108,7 +100,7 @@ class DemiseAnalyzer(object):
         print "complete!"
         qresults = []
         num_google_pages = min(num_google_pages,10)
-        add_words = [''] + random.sample(['die','death','kill','accident','injury','hurt'],num_bad_words)
+        add_words = [''] + random.sample(self.negative_search_terms,num_bad_words) # used in or-query
         print "# of randomly sampled negative terms: %d" % (num_bad_words)
         print "Negative term samples:",add_words
         print "--------------------------------------------------------"
@@ -130,44 +122,48 @@ class DemiseAnalyzer(object):
             link = item['link'].encode('utf-8')
             self.web_links.append(link)
             results.append(snip)
-        print "Completed all queries, displaying snippet results below:"
         print "--------------------------------------------------------"
+        print "Completed all queries, displaying Google snippet results below:"
         for i in xrange(len(results)):
           print i+1,')',results[i]
         print "--------------------------------------------------------"
         return results
 
     def rocchio(self,max_num_sentences):
-        print 'Running rocchio()'
 
         # Scrape all the web pages of interest
+        print 'Crawling target webpages and grabbing information...'
         html_sentences = []
         for url in self.web_links:
+          print 'Grabbing info from url:',url
           html_sentences += scrap_web_page(url)
-        print "Processing %d sentences." % len(html_sentences)
+        print "\nProcessing %d sentences." % len(html_sentences)
 
         # Count the number of pos/neg sentences and record all negative sentences
+        print 'Running Rocchio()'
         neg_sentences = []
         poscount, negcount = 0, 0
         for i in xrange(len(html_sentences)):
           sent = html_sentences[i]
           sentiment = self.classifier.classify(word_feats(sent))
           if sentiment == 'pos':
-            poscount += 1
+            poscount += 2.5 # positives are worth 250% that of negatives
           else:
             negcount += 1
             neg_sentences.append(sent)
 
         # Compute sentiment with Rocchio as the balancer
+        print 'pos_count =',poscount
+        print 'neg_count =',negcount
         sentiment = 'neutral'
+        level = 'mildly'
         if poscount > negcount:
           sentiment = 'safe'
         elif poscount < negcount:
           sentiment = 'dangerous'
-        level = 'mildly'
-        if poscount >= 1.25*negcount or negcount >= 1.25*negcount:
+        if poscount >= 2*negcount or negcount >= 2*negcount:
           level = 'relatively'
-        elif poscount >= 1.5*negcount or negcount >= 1.5*poscount:
+        elif poscount >= 4*negcount or negcount >= 4*poscount:
           level = 'very'
 
         # Record danger level as interpreted by Rocchio using Naive Bayes as a subroutine
@@ -178,53 +174,51 @@ class DemiseAnalyzer(object):
         html_sentences = random.sample(neg_sentences,samp)
         return self.create_results(html_sentences)
 
+
     def create_results(self, orig_sentences):
         print 'Running nltk subroutines in create_results()'
 
         # create a list of all tokens in each sentence
         sentences = [nltk.word_tokenize(sent) for sent in orig_sentences]
+        # record the tokenized sentences separately
         tokenized_sentences = sentences
-        # tag parts of speech for each word
-        sentences = [nltk.pos_tag(sent) for sent in sentences]
 
+        # multi-threaded pos_tag assignment
+        print 'Running multi-threaded "part-of-speech" tagging of web page results'
+        t1 = myThread(1,3,tokenized_sentences)
+        t2 = myThread(2,3,tokenized_sentences)
+        t3 = myThread(3,3,tokenized_sentences)
+
+        # TODO :: currently hard-coded to 3 threads for now
+        threads = []
+        t1.start()
+        t2.start()
+        t3.start()
+
+        threads.append(t1)
+        threads.append(t2)
+        threads.append(t3)
+
+        # Wait for all threads to be done
+        for t in threads:
+          t.join()
+
+        # tag parts of speech for each word
+        sentences = t1.results + t2.results + t3.results
+
+        print "Constructing Grammars..."
         # Verb Extraction Grammar
         grammar = r"""
-                  CHUNK0: {<V.*>}
+                  VERBS: {<V.*>}
                           }<VBZ>{
-                  CHUNK1: {<VBD>|<VBN>}
-                  CHUNK2: {<VBZ><RB>}
-                  CHUNK3: {<VBN><IN><DT><NN>}
                   """
         # Verb Regex Parser (Finds effects)
         cp_effect = nltk.RegexpParser(grammar)
 
         # Noun Extraction Grammar
-        grammar2 = r'CHUNK: {<NN|NP>}'
+        grammar2 = r'NOUNS: {<NN|NP>}'
         # Noun Regex Parser (Finds causes)
         cp_cause = nltk.RegexpParser(grammar2)
-
-        """
-        all_verbs = []
-        neg_sentences = []
-
-        for i in xrange(len(sentences)):
-          original = orig_sentences[i]
-          sentence = sentences[i]
-
-          # Collect all verbs
-          tree = cp_effect.parse(sentence)
-          for subtree in tree.subtrees():
-            if subtree.node in ['CHUNK0','CHUNK1','CHUNK2','CHUNK3']:
-              term = self.lmtzr.lemmatize(subtree[0][0],'v')
-              all_verbs.append(term)
-
-        # Record overall sentiment for Rocchio w/ database through analysis of all the verbs
-        self.determine_sentiment(all_verbs,True)
-
-        # Find the part-of-speach for each of these verbs
-        mod_neg_sentences = [list(set(nltk.word_tokenize(sent))) for sent in neg_sentences]
-        mod_neg_sentences = [nltk.pos_tag(sent) for sent in mod_neg_sentences]
-        """
 
         verbs = []
         nouns = []
@@ -236,47 +230,63 @@ class DemiseAnalyzer(object):
         # List verbs[] and List nouns[], both of which are lists of lists where
         # each sublist corresponds to an individual 'negative sentence'.
 
+        print "Parsing all sentences and collecting verbs and nouns..."
         for sent in sentences:
+
           # Collect Negative Verbs
           some_verbs = []
           tree1 = cp_effect.parse(sent)
           for subtree in tree1.subtrees():
-            if subtree.node in ['CHUNK0','CHUNK1','CHUNK2','CHUNK3']:
+            if subtree.node in ['VERBS']:
               term = self.lmtzr.lemmatize(subtree[0][0],'v')
               if self.classifier.classify(word_feats(term)) == 'neg':
                 some_verbs.append(term)
           verbs.append(some_verbs)
+
           # Collect Nouns
           some_nouns = []
           tree2 = cp_cause.parse(sent)
           for subtree in tree2.subtrees():
-            if subtree.node in ['CHUNK']:
+            if subtree.node in ['NOUNS']:
               term = self.lmtzr.lemmatize(subtree[0][0],'n')
               some_nouns.append(term)
           nouns.append(some_nouns)
 
         # Find the most negative verb/noun pairs and produce 'good' phrases
+        print "Collecting (verb,noun) pairings..."
         phrases = []
         num_sents = len(tokenized_sentences)
         for i in xrange(num_sents):
-          verb_set = neg_verbs[i]
+          verb_set = verbs[i]
           noun_set = nouns[i]
           if len(verb_set)==0 or len(noun_set)==0:
             continue
           v,n = self.min_proximity_query(verb_set,noun_set,tokenized_sentences[i])
-          rating = self.proximity_semantic_score(i,orig_sentences)
+          rating = self.proximity_semantic_score(i,orig_sentences[i-2:i+2])
           if len(v)>2 and len(n)>2:
             ss = v + ' ' + n
-            phrases.append((v+' '+n),rating)
+            phrases.append((v+' '+n,rating,orig_sentences[i]))
 
         print "len phrases = ",len(phrases)
         print "len nouns = ",len(nouns)
         print "len verbs = ",len(verbs)
 
         # Returning 10 randomly sampled results, fix this!
-        phrases = sorted(phrases, key=lambda tup:tup[1])
-        return random.sample(phrases,10)
+        print "Sorting phrases by scoring distance."
+        phrases = sorted(phrases, key=lambda tup:tup[1], reverse=True)
+        print "Returning top 10 phrases."
+        return phrases[:10]
 
+    #deprecated
+    def preprocess_information(self, results):
+        # this is a temporary method until we get the correct JSONs from the Google search
+        snippets = list()
+        for result in results:
+            for item in result["items"]:
+                snippets.append(item["snippet"])
+        return snippets
+
+    #deprecated
     def determine_sentiment(self, verbs, record_danger):
         # count the number of times each verb occurs
         countedVerbs = dict(Counter(verbs))

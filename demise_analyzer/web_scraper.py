@@ -10,9 +10,12 @@ def scrap_web_page(url):
     for i in xrange(len(html)):
       for sentence in html:
         sentence = html[i]
+        sentence = sentence.replace('\t','')
+        sentence = sentence.replace('\n','')
+        sentence = sentence.replace('  ',' ')
         html[i] = sentence
     return html
   except IOError:
-    print 'Warning: ( URL =',url,') has blocked connection, returning [\'\'].'
+    print 'Returning [\'\'] due to failed connection attempt to url:',url
     return ['']
 

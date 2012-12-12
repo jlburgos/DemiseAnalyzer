@@ -49,7 +49,7 @@ class DemiseAnalyzerDemo(QtGui.QMainWindow):
       tmp += '"'+word+'"+'
     return tmp[:-1] # Return everything except the last '+' character
 
-  def print_results(self,analyzer_output):
+  def print_results(self,text):
     start_time = time.time()
     text = self.process_query(text)
     google_snippets = self.analyzer.online_search(num_bad_words=1,num_google_pages=1,activity_query=text)
@@ -59,7 +59,9 @@ class DemiseAnalyzerDemo(QtGui.QMainWindow):
     print "_____________________________________________________________"
     i = 0
     for result in analyzer_output:
-      print i+1,')',result
+      print i+1,result[0]
+      print '--',result[2][:100]
+      print '--------------------------------------------------------------'
       i+=1
     print "_____________________________________________________________"
     print "Rocchio_V1 with Naive Bayes info deems your activity: ",self.analyzer.danger_r1
