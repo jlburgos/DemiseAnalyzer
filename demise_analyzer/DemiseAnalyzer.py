@@ -84,6 +84,22 @@ class DemiseAnalyzer(object):
               pack = (verb,noun,dist)
         return pack[0].lower(),pack[1].lower()
 
+    def proximity_semantic_score(i,orig_sentences):
+        # initialize score to 0
+        score = 0
+        # read the current sentence and the two sentences before and after it
+        low = i-2
+        high = i+2
+        idx = low
+        if i-2 < 0:
+          idx = 0
+        if i+2 > len(orig_sentences):
+          high = len(orig_sentences)
+        negs = self.negative_words
+        while idx <= high:
+          score += len(set(negs) & set(orig_sentences[idx]))
+        return score
+
     def online_search(self,num_bad_words,num_google_pages,activity_query):
         print "User activity_query = %s" % (activity_query)
         print "--------------------------------------------------------"
@@ -167,6 +183,7 @@ class DemiseAnalyzer(object):
 
         # create a list of all tokens in each sentence
         sentences = [nltk.word_tokenize(sent) for sent in orig_sentences]
+        tokenized_sentences = sentences
         # tag parts of speech for each word
         sentences = [nltk.pos_tag(sent) for sent in sentences]
 
@@ -219,7 +236,7 @@ class DemiseAnalyzer(object):
         # List verbs[] and List nouns[], both of which are lists of lists where
         # each sublist corresponds to an individual 'negative sentence'.
 
-        for sent in mod_neg_sentences:
+        for sent in sentences:
           # Collect Negative Verbs
           some_verbs = []
           tree1 = cp_effect.parse(sent)
@@ -240,36 +257,25 @@ class DemiseAnalyzer(object):
 
         # Find the most negative verb/noun pairs and produce 'good' phrases
         phrases = []
-        for i in xrange(len(neg_verbs)):
+        num_sents = len(tokenized_sentences)
+        for i in xrange(num_sents):
           verb_set = neg_verbs[i]
           noun_set = nouns[i]
-          ####################################################################
-          print 'Need to modify min_prox query to take in tokenized sentence with pos tags'
-          exit()
-          ####################################################################
           if len(verb_set)==0 or len(noun_set)==0:
             continue
-          v,n = self.min_proximity_query(verb_set,noun_set,orig_sentences[i])
+          v,n = self.min_proximity_query(verb_set,noun_set,tokenized_sentences[i])
+          rating = self.proximity_semantic_score(i,orig_sentences)
           if len(v)>2 and len(n)>2:
             ss = v + ' ' + n
-            phrases.append(v+' '+n)
+            phrases.append((v+' '+n),rating)
 
-        #phrases = list(set(phrases))
         print "len phrases = ",len(phrases)
         print "len nouns = ",len(nouns)
         print "len verbs = ",len(verbs)
 
-        # TODO :: For now we are returning 15 randomly sampled results, fix this!
-        return random.sample(phrases,15)
-
-        ##############################################3
-        print "SHOULD NEVER SEE THIS LINE!!!"
-        exit()
-        ##############################################3
-
-        #nouns = [noun for noun in nouns if self.classifier.classify(word_feats(noun))=='neg']
-        #verbs = [pair[0] for pair in sorted(self.determine_sentiment(verbs,True).items(), key=lambda item: item[1], reverse=True)]
-        #return verbs[:15]
+        # Returning 10 randomly sampled results, fix this!
+        phrases = sorted(phrases, key=lambda tup:tup[1])
+        return random.sample(phrases,10)
 
     def determine_sentiment(self, verbs, record_danger):
         # count the number of times each verb occurs
