@@ -21,7 +21,7 @@ NLTK Completely installed (include movie review corpus),
 PyQT4, and
 Google's Custom Search API (apiclient.discovery).
 
-To run our test file type the following into the terminal:
-`python DemiseAnalyzerTest.py`
+To run our test file type the following into the terminal from the project directory:
+`python launcher.py`
 
 A simple gui will appear with a button and popup window. When running the program on a given query activity, please note that it may take as much as 130 seconds to finish running.
