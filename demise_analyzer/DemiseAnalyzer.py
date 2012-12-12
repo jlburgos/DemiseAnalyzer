@@ -63,12 +63,12 @@ class DemiseAnalyzer(object):
         # train naive bayes
         self.classifier = NaiveBayesClassifier.train(trainfeats)
 
+        # TODO :: Linear Regression planned to be used for ranking
         # train linear regression model
         #self.regr = linear_model.LinearRegression()
-        #self.regr.fit(jk
 
     def min_proximity_query(self,verb_set,noun_set,sentence):
-        pack = ('','',len(sentence)) # (verb,noun,min_dist)
+        pack = ('','',len(sentence)+1) # (verb,noun,min_dist)
         for verb in verb_set:
           if verb not in sentence: continue
           for noun in noun_set:
@@ -79,7 +79,6 @@ class DemiseAnalyzer(object):
         return pack[0].lower(),pack[1].lower()
 
     def proximity_semantic_score(self,i,sentences):
-        # initialize score to 0
         score = 0
         # read the current sentence and the two sentences before and after it
         for sent in sentences:
@@ -151,6 +150,7 @@ class DemiseAnalyzer(object):
           else:
             negcount += 1
             neg_sentences.append(sent)
+        poscount = math.ceil(poscount)
 
         # Compute sentiment with Rocchio as the balancer
         print 'pos_count =',poscount
@@ -262,7 +262,7 @@ class DemiseAnalyzer(object):
           if len(verb_set)==0 or len(noun_set)==0:
             continue
           v,n = self.min_proximity_query(verb_set,noun_set,tokenized_sentences[i])
-          rating = self.proximity_semantic_score(i,orig_sentences[i-2:i+2])
+          rating = self.proximity_semantic_score(i,orig_sentences[i-1:i+1])
           if len(v)>2 and len(n)>2:
             ss = v + ' ' + n
             phrases.append((v+' '+n,rating,orig_sentences[i]))
@@ -272,7 +272,8 @@ class DemiseAnalyzer(object):
         print "len verbs = ",len(verbs)
 
         # Returning 10 randomly sampled results, fix this!
-        print "Sorting phrases by scoring distance."
+        print "Removing duplicates and porting phrases by negativity scores."
+        phrases = list(set(phrases))
         phrases = sorted(phrases, key=lambda tup:tup[1], reverse=True)
         print "Returning top 10 phrases."
         return phrases[:10]

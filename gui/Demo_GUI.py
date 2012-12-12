@@ -55,17 +55,17 @@ class DemiseAnalyzerDemo(QtGui.QMainWindow):
     google_snippets = self.analyzer.online_search(num_bad_words=1,num_google_pages=1,activity_query=text)
     analyzer_output = self.analyzer.rocchio(self.MAX_SENTENCES)
     print "_____________________________________________________________"
-    print "According to our trained Linear Regression Model, the top results are:"
+    print "According to our trained Demise Analyzer Model, the top results are:"
     print "_____________________________________________________________"
     i = 0
     for result in analyzer_output:
       print i+1,result[0]
-      print '--',result[2][:100]
+      max_char = min(100,len(result[2]))
+      print '--Sampled Sentence: %s ...' % result[2][:max_char]
       print '--------------------------------------------------------------'
       i+=1
     print "_____________________________________________________________"
-    print "Rocchio_V1 with Naive Bayes info deems your activity: ",self.analyzer.danger_r1
-    print "Rocchio_V2 with a database info deems your activity:  ",self.analyzer.danger_r2
+    print "Rocchio with Naive Bayes info deems your activity:",self.analyzer.danger_r1
     end_time = time.time()
     print 'done with constructing results after %.3f seconds'%(end_time-start_time)
     print "_____________________________________________________________"
@@ -74,6 +74,7 @@ class DemiseAnalyzerDemo(QtGui.QMainWindow):
     self.statusBar().showMessage('Awaiting User Query ...')
     text, ok = QtGui.QInputDialog.getText(self, 'Provide Activity', 'User Activity:')
     self.statusBar().showMessage('Processing User Query...')
+    time.sleep(1)
     #self.show()
     if ok and text != "":
       self.print_results(text)
