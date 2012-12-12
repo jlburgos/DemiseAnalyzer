@@ -19,6 +19,8 @@ from nltk.classify import NaiveBayesClassifier
 from nltk.corpus import movie_reviews
 from nltk.stem.wordnet import WordNetLemmatizer
 
+from sklearn import linear_model
+
 from apiclient.discovery import build
 
 class DemiseAnalyzer(object):
@@ -48,15 +50,21 @@ class DemiseAnalyzer(object):
 
         # set up structure for classifying web search results
         self.web_links = []
-        self.train_naive_bayes()
+        self.train_classifiers()
 
-    def train_naive_bayes(self):
+    def train_classifiers(self):
         negids = movie_reviews.fileids('neg')
         posids = movie_reviews.fileids('pos')
         negfeats = [(word_feats(movie_reviews.words(fileids=[f])),'neg') for f in negids]
         posfeats = [(word_feats(movie_reviews.words(fileids=[f])),'pos') for f in posids]
         trainfeats = negfeats + posfeats
+
+        # train naive bayes
         self.classifier = NaiveBayesClassifier.train(trainfeats)
+
+        # train linear regression model
+        #self.regr = linear_model.LinearRegression()
+        #self.regr.fit(jk
 
     #deprecated
     def preprocess_information(self, results):
@@ -71,7 +79,7 @@ class DemiseAnalyzer(object):
         pack = ('','',len(sentence)) # (verb,noun,min_dist)
         for verb in verb_set:
           for noun in noun_set:
-            dist = abs(sentence.find(verb) - sentence.find(noun))
+            dist = abs(sentence.index(verb) - sentence.index(noun))
             if dist < pack[2] and self.classifier.classify(word_feats(verb+' '+noun))=='neg':
               pack = (verb,noun,dist)
         return pack[0].lower(),pack[1].lower()
@@ -115,13 +123,16 @@ class DemiseAnalyzer(object):
 
     def rocchio(self,max_num_sentences):
         print 'Running rocchio()'
-        poscount, negcount = 0, 0
+
+        # Scrape all the web pages of interest
         html_sentences = []
         for url in self.web_links:
           html_sentences += scrap_web_page(url)
-        html_sentences = random.sample(html_sentences,min(max_num_sentences,len(html_sentences)))
         print "Processing %d sentences." % len(html_sentences)
 
+        # Count the number of pos/neg sentences and record all negative sentences
+        neg_sentences = []
+        poscount, negcount = 0, 0
         for i in xrange(len(html_sentences)):
           sent = html_sentences[i]
           sentiment = self.classifier.classify(word_feats(sent))
@@ -129,8 +140,9 @@ class DemiseAnalyzer(object):
             poscount += 1
           else:
             negcount += 1
+            neg_sentences.append(sent)
 
-        # For Rocchio V1
+        # Compute sentiment with Rocchio as the balancer
         sentiment = 'neutral'
         if poscount > negcount:
           sentiment = 'safe'
@@ -142,13 +154,19 @@ class DemiseAnalyzer(object):
         elif poscount >= 1.5*negcount or negcount >= 1.5*poscount:
           level = 'very'
 
+        # Record danger level as interpreted by Rocchio using Naive Bayes as a subroutine
         self.danger_r1 = level + ' ' + sentiment
+
+        # Randomly sample from the remaining negative sentences
+        samp = min(max_num_sentences,len(neg_sentences))
+        html_sentences = random.sample(neg_sentences,samp)
         return self.create_results(html_sentences)
 
     def create_results(self, orig_sentences):
         print 'Running nltk subroutines in create_results()'
+
         # create a list of all tokens in each sentence
-        sentences = [list(set(nltk.word_tokenize(sent))) for sent in orig_sentences]
+        sentences = [nltk.word_tokenize(sent) for sent in orig_sentences]
         # tag parts of speech for each word
         sentences = [nltk.pos_tag(sent) for sent in sentences]
 
@@ -160,27 +178,21 @@ class DemiseAnalyzer(object):
                   CHUNK2: {<VBZ><RB>}
                   CHUNK3: {<VBN><IN><DT><NN>}
                   """
+        # Verb Regex Parser (Finds effects)
+        cp_effect = nltk.RegexpParser(grammar)
 
         # Noun Extraction Grammar
         grammar2 = r'CHUNK: {<NN|NP>}'
-
-        # Verb Regex Parser (Finds effects)
-        cp_effect = nltk.RegexpParser(grammar)
         # Noun Regex Parser (Finds causes)
         cp_cause = nltk.RegexpParser(grammar2)
 
+        """
         all_verbs = []
         neg_sentences = []
 
         for i in xrange(len(sentences)):
           original = orig_sentences[i]
           sentence = sentences[i]
-
-          # Check if the original sentence is found negative by naive bayes
-          if self.classifier.classify(word_feats(original)) == 'neg':
-            # If sentence contains a negative word append it to neg_sentences
-            if not set(self.negative_words).isdisjoint(original.split(' ')):
-              neg_sentences.append(original)
 
           # Collect all verbs
           tree = cp_effect.parse(sentence)
@@ -195,6 +207,7 @@ class DemiseAnalyzer(object):
         # Find the part-of-speach for each of these verbs
         mod_neg_sentences = [list(set(nltk.word_tokenize(sent))) for sent in neg_sentences]
         mod_neg_sentences = [nltk.pos_tag(sent) for sent in mod_neg_sentences]
+        """
 
         verbs = []
         nouns = []
@@ -205,18 +218,18 @@ class DemiseAnalyzer(object):
         #
         # List verbs[] and List nouns[], both of which are lists of lists where
         # each sublist corresponds to an individual 'negative sentence'.
-        for sent in mod_neg_sentences:
 
-          # Verbs
+        for sent in mod_neg_sentences:
+          # Collect Negative Verbs
           some_verbs = []
           tree1 = cp_effect.parse(sent)
           for subtree in tree1.subtrees():
             if subtree.node in ['CHUNK0','CHUNK1','CHUNK2','CHUNK3']:
               term = self.lmtzr.lemmatize(subtree[0][0],'v')
-              some_verbs.append(term)
+              if self.classifier.classify(word_feats(term)) == 'neg':
+                some_verbs.append(term)
           verbs.append(some_verbs)
-
-          # Nouns
+          # Collect Nouns
           some_nouns = []
           tree2 = cp_cause.parse(sent)
           for subtree in tree2.subtrees():
@@ -225,20 +238,15 @@ class DemiseAnalyzer(object):
               some_nouns.append(term)
           nouns.append(some_nouns)
 
-        # Take all the verbs we just found from the negative sentences
-        neg_verbs = []
-        for v_set in verbs:
-          sub_neg_verbs = []
-          for verb in v_set:
-            if self.classifier.classify(word_feats(verb)) == 'neg':
-              sub_neg_verbs.append(verb)
-          neg_verbs.append(sub_neg_verbs)
-
         # Find the most negative verb/noun pairs and produce 'good' phrases
         phrases = []
         for i in xrange(len(neg_verbs)):
           verb_set = neg_verbs[i]
           noun_set = nouns[i]
+          ####################################################################
+          print 'Need to modify min_prox query to take in tokenized sentence with pos tags'
+          exit()
+          ####################################################################
           if len(verb_set)==0 or len(noun_set)==0:
             continue
           v,n = self.min_proximity_query(verb_set,noun_set,orig_sentences[i])
@@ -246,7 +254,7 @@ class DemiseAnalyzer(object):
             ss = v + ' ' + n
             phrases.append(v+' '+n)
 
-        phrases = list(set(phrases))
+        #phrases = list(set(phrases))
         print "len phrases = ",len(phrases)
         print "len nouns = ",len(nouns)
         print "len verbs = ",len(verbs)

@@ -39,12 +39,34 @@ class DemiseAnalyzerDemo(QtGui.QMainWindow):
     print 'Application ready for action!'
 
   def process_query(self,text):
+    """
+    Turn input string to form: "token"+"token"+ ... +"token"+token" for google custom search.
+    """
     text = reduce(lambda text,c: text.replace(c,''), string.punctuation, text)
     text = str(text).split()
     tmp = ''
     for word in text:
       tmp += '"'+word+'"+'
-    return tmp[:-1]
+    return tmp[:-1] # Return everything except the last '+' character
+
+  def print_results(self,analyzer_output):
+    start_time = time.time()
+    text = self.process_query(text)
+    google_snippets = self.analyzer.online_search(num_bad_words=1,num_google_pages=1,activity_query=text)
+    analyzer_output = self.analyzer.rocchio(self.MAX_SENTENCES)
+    print "_____________________________________________________________"
+    print "According to our trained Linear Regression Model, the top results are:"
+    print "_____________________________________________________________"
+    i = 0
+    for result in analyzer_output:
+      print i+1,')',result
+      i+=1
+    print "_____________________________________________________________"
+    print "Rocchio_V1 with Naive Bayes info deems your activity: ",self.analyzer.danger_r1
+    print "Rocchio_V2 with a database info deems your activity:  ",self.analyzer.danger_r2
+    end_time = time.time()
+    print 'done with constructing results after %.3f seconds'%(end_time-start_time)
+    print "_____________________________________________________________"
 
   def show_dialog(self):
     self.statusBar().showMessage('Awaiting User Query ...')
@@ -52,20 +74,7 @@ class DemiseAnalyzerDemo(QtGui.QMainWindow):
     self.statusBar().showMessage('Processing User Query...')
     #self.show()
     if ok and text != "":
-      start_time = time.time()
-      text = self.process_query(text)
-      google_snippets = self.analyzer.online_search(num_bad_words=1,num_google_pages=1,activity_query=text)
-      analyzer_output = self.analyzer.rocchio(self.MAX_SENTENCES)
-      print "\n_____________________________________________________________\n"
-      i = 0
-      for result in analyzer_output:
-        print i+1,')',result
-        i+=1
-      print "_____________________________________________________________\n"
-      print "Rocchio_V1 with Naive Bayes info deems your activity: ",self.analyzer.danger_r1
-      print "Rocchio_V2 with a database info deems your activity:  ",self.analyzer.danger_r2
-      end_time = time.time()
-      print 'done with constructing results after %.3f seconds'%(end_time-start_time)
+      self.print_results(text)
       self.statusBar().showMessage('Ready for Action!')
     else:
       self.statusBar().showMessage('User entered empty string, waiting ...')
