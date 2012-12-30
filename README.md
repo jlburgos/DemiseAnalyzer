@@ -15,11 +15,11 @@ Our program begins by taking in the user query and searching google with it as t
 ### System Requirements
 
 System Requirements:
-2 Physical Cores, since we recently introduced multi-threading,
-Python 2.7+,
-NLTK Completely installed (include movie review corpus),
-PyQT4, and
-Google's Custom Search API (apiclient.discovery).
+2 Physical Cores, since we recently introduced multi-threading;
+Python 2.7+;
+NLTK Completely installed (include movie review corpus);
+PyQT4;
+and Google's Custom Search API (apiclient.discovery).
 
 To run our test file type the following into the terminal from the project directory:
 `python launcher.py`
